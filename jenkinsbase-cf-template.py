@@ -11,11 +11,36 @@ from troposphere import (
     Template, 
 ) 
 
+from troposphere.iam import ( 
+    InstanceProfile, 
+    PolicyType as IAMPolicy, 
+    Role,  
+) 
+ 
+from awacs.aws import ( 
+    Action, 
+    Allow, 
+    Policy, 
+    Principal, 
+    Statement, 
+) 
+ 
+from awacs.sts import AssumeRole 
+
 from ipaddress import ip_network
 
 from ipify import get_ip
 
-ApplicationPort = "3000" 
+ApplicationName = "jenkins" 
+ApplicationPort = "8080" 
+
+GithubAccount = "lucap01"
+GithubAnsibleURL = "https://github.com/{}/ansible".format(GithubAccount)
+
+AnsiblePullCmd = "/usr/local/bin/ansible-pull -U {} {}.yml -i localhost".format(
+        GithubAnsibleURL,
+        ApplicationName
+    )
 
 PublicCidrIp = str(ip_network(get_ip()))
 
@@ -49,13 +74,32 @@ t.add_resource(ec2.SecurityGroup(
     ], 
 ))
 
-ud = Base64(Join('\n', [ 
-    "#!/bin/bash", 
-    "sudo yum install --enablerepo=epel -y nodejs", 
-    "wget http://bit.ly/2vESNuc -O /home/ec2-user/helloworld.js", 
-    "wget http://bit.ly/2vVvT18 -O /etc/init/helloworld.conf", 
-    "start helloworld" 
-])) 
+ud = Base64(Join('\n', [
+    "#!/bin/bash",
+    "yum install --enablerepo=epel -y git",
+    "pip install ansible",
+    AnsiblePullCmd,
+    "echo '*/10 * * * * {}' > /etc/cron.d/ansible-pull".format(AnsiblePullCmd)
+]))
+
+t.add_resource(Role(
+    "Role",
+    AssumeRolePolicyDocument=Policy(
+        Statement=[
+            Statement(
+                Effect=Allow,
+                Action=[AssumeRole],
+                Principal=Principal("Service", ["ec2.amazonaws.com"])
+            )
+        ]
+    )
+))
+
+t.add_resource(InstanceProfile( 
+    "InstanceProfile", 
+    Path="/", 
+    Roles=[Ref("Role")] 
+)) 
 
 instance = ec2.Instance("myinstance")
 instance.ImageId ="ami-51809835"
@@ -63,6 +107,8 @@ instance.InstanceType ="t2.micro"
 instance.SecurityGroups=[Ref("SecurityGroup")]
 instance.UserData = ud
 instance.KeyName=Ref("KeyPair")
+instance.IamInstanceProfile=Ref("InstanceProfile")
+
 
 t.add_resource(instance)
 

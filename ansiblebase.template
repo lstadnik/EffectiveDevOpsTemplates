@@ -43,7 +43,7 @@
                 "GroupDescription": "Allow SSH and TCP/3000 access",
                 "SecurityGroupIngress": [
                     {
-                        "CidrIp": "81.219.174.216/32",
+                        "CidrIp": "81.219.174.216/24",
                         "FromPort": "22",
                         "IpProtocol": "tcp",
                         "ToPort": "22"
@@ -76,10 +76,10 @@
                             "\n",
                             [
                                 "#!/bin/bash",
-                                "sudo yum install --enablerepo=epel -y nodejs",
-                                "wget http://bit.ly/2vESNuc -O /home/ec2-user/helloworld.js",
-                                "wget http://bit.ly/2vVvT18 -O /etc/init/helloworld.conf",
-                                "start helloworld"
+                                "yum install --enablerepo=epel -y git",
+                                "pip install ansible",
+                                "/usr/local/bin/ansible-pull -U https://github.com/lucap01/ansible helloworld.yml -i localhost",
+                                "echo '*/10 * * * * /usr/local/bin/ansible-pull -U https://github.com/lucap01/ansible helloworld.yml -i localhost' > /etc/cron.d/ansible-pull"
                             ]
                         ]
                     }
